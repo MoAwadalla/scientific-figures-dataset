@@ -30,7 +30,7 @@ def extract_figures_from_gz(gz_file):
     print(paper_id)
     try:
         res = False
-        with tarfile.open(os.path.join(RAW_DIR, gz_file), mode='r') as tar:
+        with tarfile.open(os.path.join(RAW_DIR, gz_file), mode='r:gz') as tar:
             tmp_dir = os.path.join("./tmp", paper_id)
             tar.extractall(path=tmp_dir)
             tex_files = [os.path.join(root, name)
@@ -154,4 +154,3 @@ def run():
 
 if __name__ == '__main__':
     run()
-
