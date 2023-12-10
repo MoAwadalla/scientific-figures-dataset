@@ -6,17 +6,17 @@ from io import BytesIO
 import shutil
 import tarfile
 from concurrent.futures import ProcessPoolExecutor
-#from google.cloud import logging as cloud_logging
+from google.cloud import logging as cloud_logging
 from TexSoup import TexSoup
 from PIL import Image as PILImage
 from pdf2image import convert_from_path
 
 
-# logging_client = cloud_logging.Client()
+logging_client = cloud_logging.Client()
 
-# log_name = 'dataset-creation'
+log_name = 'dataset-creation'
 
-# #logger = logging_client.#logger(log_name)
+logger = logging_client.logger(log_name)
 
 # Create dataset directories if they don't exist
 dataset_dir = 'dataset'
@@ -42,16 +42,16 @@ def extract_figures_from_gz(gz_file):
                     with open(tex_file_path, 'r', encoding='utf-8') as file:
                         content += file.read()
                 except Exception as e:
-                    #logger.log_text(f"Error reading {tex_file_path}: {e}")
+                    logger.log_text(f"Error reading {tex_file_path}: {e}")
                     print(e)
             res = process_tex(content, paper_id, tmp_dir)
-            #logger.log_text(f"processed paper {paper_id}")
+            logger.log_text(f"processed paper {paper_id}")
             shutil.rmtree(tmp_dir)
         if res:
             pass
-            #os.remove(os.path.join(RAW_DIR, gz_file))
+            os.remove(os.path.join(RAW_DIR, gz_file))
     except Exception as e:
-        #logger.log_text(f"Error processing gz file {gz_file}: {e}")
+        logger.log_text(f"Error processing gz file {gz_file}: {e}")
         print(e)
 
 def process_all_gz_files():
