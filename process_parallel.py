@@ -1,3 +1,4 @@
+import base64
 import os
 import re
 import json
@@ -19,12 +20,9 @@ from pdf2image import convert_from_path
 
 # Create dataset directories if they don't exist
 dataset_dir = 'dataset'
-figures_dir = os.path.join(dataset_dir, 'figures')
 RAW_DIR = 's3raw'
 if not os.path.exists(dataset_dir):
     os.makedirs(dataset_dir)
-if not os.path.exists(figures_dir):
-    os.makedirs(figures_dir)
 
 
 def extract_figures_from_gz(gz_file):
@@ -98,22 +96,31 @@ def process_tex(content, paper_id, tmp_dir):
                 continue
             if (len(image_filename) > 1): image_filename = image_filename[-1]
             else: image_filename = image_filename[0]
-            dest_image_path = None
+            image_bytes = None
             if image_filename:
                 image_path = os.path.join(tmp_dir, image_filename)
-                unique_image_name = f"{paper_id}_{image_filename}".replace('/', '_')
-                dest_image_path = os.path.join(figures_dir, unique_image_name)
                 if os.path.exists(image_path):
+                    #convert to png if pdf
                     if image_path.lower().endswith('.pdf'):
                         try:
                             images = convert_from_path(image_path)
-                            dest_image_path = dest_image_path.replace('.pdf', '.png')
-                            images[0].save(dest_image_path, 'PNG')
-                            os.remove(image_path)
+                            pil_image = images[0]
+                            buff = BytesIO()
+                            pil_image.save(buff, format="PNG")
+                            image_bytes = base64.b64encode(buff.getvalue()).decode("utf-8")
                         except Exception as e:
+                            print(e)
                             continue
                     else:
-                        shutil.copy(image_path, dest_image_path)
+                        try:
+                            pil_image = PILImage.open(image_path)
+                            # serialize the image to bytes
+                            buff = BytesIO()
+                            pil_image.save(buff, format="PNG")
+                            image_bytes = base64.b64encode(buff.getvalue()).decode("utf-8")
+                        except Exception as e:
+                            print(e)
+                            continue
                 else:
                     continue
             else:
@@ -131,7 +138,7 @@ def process_tex(content, paper_id, tmp_dir):
                 if (caption[0] == label): caption = caption[1:]
                 caption = ''.join(caption)
             image_data = {
-                'image_filename': dest_image_path,
+                'image': image_bytes,
                 'label': label,
                 'caption': caption
             }
