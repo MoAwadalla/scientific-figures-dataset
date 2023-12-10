@@ -67,87 +67,50 @@ def save_dataset(dataset, paper_id, suffix='full'):
 
 
 def process_tex(content, paper_id, tmp_dir):
-    full_dataset = []
-    image_caption_dataset = []
+    try:
+        soup = TexSoup(content)
+        items = []  # This will contain both text and figures
 
-    figure_pattern = r"(\\begin\{figure\}.*?\\end\{figure\})"
+        # Iterate through the elements in the document
+        for elem in soup.contents:
+            if isinstance(elem, TexSoup.utils.TokenWithPosition):
+                # If the element is text, add it to the dataset
+                text = str(elem).strip()
+                if text:
+                    items.append({'text': text})
+            elif elem.name == 'figure':
+                image_tag = elem.find('includegraphics')
+                image_filename = None
+                image_bytes = None
+                if image_tag:
+                    image_filename = image_tag.args[-1]  # The last argument should be the filename
+                    # Further functionality to handle image conversion and base64 encoding...
 
-    # Split the text based on the figure pattern, capturing the delimiters (figures)
-    parts = re.split(figure_pattern, content, flags=re.DOTALL)
-    parts = [part for part in parts if part.strip() != ""]
+                label = elem.label.string if elem.label else None
+                caption = elem.caption.string if elem.caption else None
+                
+                image_data = {
+                    'image': image_bytes,  # Replace with actual image data
+                    'label': label,
+                    'caption': caption
+                }
+                items.append(image_data)
 
-    bitmap = [1 if re.match(figure_pattern, part, flags=re.DOTALL) else 0 for part in parts]
+        # Split the full_dataset into full_dataset and image_caption_dataset
+        full_dataset, image_caption_dataset = [], []
+        for item in items:
+            if 'image' in item:
+                image_caption_dataset.append(item)
+            full_dataset.append(item)
 
-    for i in range(len(bitmap)):
-        if bitmap[i] == 0:
-            soup = TexSoup(parts[i])
-            fulltext = ""
-            for t in soup.text:
-                fulltext += t.lstrip().rstrip()
-            ''.join(fulltext.split())
-            full_dataset.append({'text': fulltext})
-        else:
-            figure = TexSoup(parts[i])
-            image_filename = figure.find('includegraphics')
-            if image_filename:
-                image_filename = image_filename.text
-            else:
-                print("no filename")
-                continue
-            if (len(image_filename) > 1): image_filename = image_filename[-1]
-            else: image_filename = image_filename[0]
-            image_bytes = None
-            if image_filename:
-                image_path = os.path.join(tmp_dir, image_filename)
-                if os.path.exists(image_path):
-                    #convert to png if pdf
-                    if image_path.lower().endswith('.pdf'):
-                        try:
-                            images = convert_from_path(image_path)
-                            pil_image = images[0]
-                            buff = BytesIO()
-                            pil_image.save(buff, format="PNG")
-                            image_bytes = base64.b64encode(buff.getvalue()).decode("utf-8")
-                        except Exception as e:
-                            print(e)
-                            continue
-                    else:
-                        try:
-                            pil_image = PILImage.open(image_path)
-                            # serialize the image to bytes
-                            buff = BytesIO()
-                            pil_image.save(buff, format="PNG")
-                            image_bytes = base64.b64encode(buff.getvalue()).decode("utf-8")
-                        except Exception as e:
-                            print(e)
-                            continue
-                else:
-                    continue
-            else:
-                continue
-            label = figure.find('label')
-            if label:
-                label = ''.join(label.text)
-            else:
-                print("no label")
+        # Save the datasets
+        save_dataset(full_dataset, paper_id)
+        save_dataset(image_caption_dataset, paper_id, suffix='image_caption')
+        return True
 
-            caption = figure.find('caption')
-
-            if caption:
-                caption = caption.text
-                if (caption[0] == label): caption = caption[1:]
-                caption = ''.join(caption)
-            image_data = {
-                'image': image_bytes,
-                'label': label,
-                'caption': caption
-            }
-            full_dataset.append(image_data)
-            image_caption_dataset.append(image_data)
-
-    save_dataset(full_dataset, paper_id)
-    save_dataset(image_caption_dataset, paper_id, suffix='image_caption')
-    return True
+    except Exception as e:
+        logger.log_text(f"Error processing LaTeX content: {e}")
+        return False
 
 def run():
     process_all_gz_files()
