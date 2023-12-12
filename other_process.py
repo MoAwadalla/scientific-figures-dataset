@@ -4,7 +4,7 @@ from io import BytesIO
 import shutil
 import nltk
 import tarfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from google.cloud import logging as cloud_logging
 from TexSoup import TexSoup
 
@@ -49,7 +49,7 @@ def extract_figures_from_gz(gz_file):
 
 def process_all_gz_files():
     gz_files = [f for f in os.listdir(RAW_DIR) if f.endswith(".gz")]
-    with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
         executor.map(extract_figures_from_gz, gz_files)
 
 def save_dataset(dataset, paper_id):
