@@ -21,7 +21,7 @@ def extract_figures_from_gz(gz_file):
     paper_id = gz_file[:-3]
     print(paper_id)
     try:
-        with tarfile.open(os.path.join(RAW_DIR, gz_file), mode='r') as tar:
+        with tarfile.open(os.path.join(RAW_DIR, gz_file), mode='r:gz') as tar:
             tmp_dir = os.path.join("./tmp", paper_id)
             tar.extractall(path=tmp_dir)
             tex_files = [os.path.join(root, name)
@@ -30,7 +30,7 @@ def extract_figures_from_gz(gz_file):
             content = ""
             for tex_file_path in tex_files:
                 try:
-                    with open(tex_file_path, 'r', encoding='utf-8') as file:
+                    with open(tex_file_path, 'r') as file:
                         content += file.read()
                 except Exception as e:
                     print(e)
