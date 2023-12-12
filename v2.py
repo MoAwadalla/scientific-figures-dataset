@@ -104,7 +104,7 @@ def process_tex(content, paper_id):
         if isinstance(image_filename, list):
             image_filename = image_filename[-1]
 
-        image_filename = get_image_link(TMP_DIR, image_filename, paper_id, i)
+        image_filename = get_image_link(os.path.join(TMP_DIR, paper_id), image_filename, paper_id, i)
 
         caption = figure.find('caption')
         if caption:
@@ -135,9 +135,10 @@ def process_tex(content, paper_id):
 
     save_dataset(text_with_image_embedded, paper_id)
 
-def save_dataset(dataset, paper_id, suffix=''):
+def save_dataset(dataset, paper_id):
     if dataset == []: return
-    dataset_path = os.path.join(dataset_dir, f'{paper_id}_{suffix}.json')
+    paper_id.replace('.', '_')
+    dataset_path = os.path.join(dataset_dir, f'{paper_id}.json')
     with open(dataset_path, 'w', encoding='utf-8') as f:
         json.dump(dataset, f, ensure_ascii=False, indent=4)
 
