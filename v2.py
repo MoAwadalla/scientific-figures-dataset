@@ -61,7 +61,7 @@ def extract_figures_from_gz(gz_file):
     try:
         print(os.path.join(RAW_DIR, gz_file))
         with tarfile.open(os.path.join(RAW_DIR, gz_file), mode='r:gz') as gz:
-            gz.extractall(path=TMP_DIR)
+            gz.extractall(path=os.path.join(TMP_DIR, paper_id))
             tex_files = [os.path.join(root, name)
                           for root, dirs, files in os.walk(TMP_DIR)
                           for name in files if name.endswith(".tex")]
