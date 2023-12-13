@@ -79,21 +79,9 @@ def extract_figures_from_gz(gz_file):
 
 def process_tex(content, paper_id):
     image_caption_dataset = []
-    text_with_image_embedded = []
 
     raw_soup = TexSoup(content, tolerance=1)
     figures = raw_soup.find_all('figure')
-
-    res_begin = [i for i in range(len(content)) if content.startswith("\\begin{figure}", i)]
-    res_end = [i for i in range(len(content)) if content.startswith("\\end{figure}", i)]
-    for i in range(len(res_begin)):
-        r = res_begin[i]
-        e = res_end[i]
-        content = content[:r] + " REPLACE ME WITH FIGURE " + content[e:]
-
-    raw_soup = TexSoup(content, tolerance=1)
-
-    fulltext = "".join(raw_soup.text).lstrip().rstrip()
 
     for i, figure in enumerate(figures):
         image_filename = figure.find('includegraphics')
@@ -124,16 +112,7 @@ def process_tex(content, paper_id):
             'label': label
         })
 
-    for i in range(len(res_begin)):
-        r = res_begin[i]
-        e = res_end[i]
-        text_with_image_embedded.append(fulltext[:r])
-        text_with_image_embedded.append(image_caption_dataset[i])
-        fulltext = fulltext[e:]
-
-    text_with_image_embedded.append(fulltext)
-
-    save_dataset(text_with_image_embedded, paper_id)
+    save_dataset(image_caption_dataset, paper_id + "_imagesonly")
 
 def save_dataset(dataset, paper_id):
     if dataset == []: return
