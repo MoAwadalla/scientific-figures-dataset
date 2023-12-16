@@ -59,10 +59,8 @@ def extract_figures_from_gz(gz_file, dir):
     paper_id = gz_file[:-3]
     # print(paper_id)
     try:
-        for f in dir:
-            if f.startswith(paper_id.replace('.','_')):
-                print(f'skipped {paper_id}')
-                return
+        if any(f.startswith(paper_id.replace('.','_')) for f in dir):
+            return
         print(os.path.join(RAW_DIR, gz_file))
         with tarfile.open(os.path.join(RAW_DIR, gz_file), mode='r:gz') as gz:
             gz.extractall(path=os.path.join(TMP_DIR, paper_id))
@@ -165,6 +163,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.processes == 1:
         dir = os.listdir(figures_dir)
+        dir = set(dir)
         process_all_gz_files(dir)
     else:
         with Pool(args.processes) as p:
