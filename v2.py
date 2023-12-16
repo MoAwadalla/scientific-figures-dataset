@@ -96,19 +96,17 @@ def process_tex(content, paper_id):
         if isinstance(image_filename, list):
             image_filename = image_filename[-1]
 
-        image_filename = get_image_link(os.path.join(TMP_DIR, paper_id), image_filename, paper_id, i)
-
         caption = figure.find('caption')
         if caption:
             caption = caption.text
         else:
-            print("no caption")
+            continue
 
         label = figure.find('label')
         if label:
             label = label.text
-        else:
-            print("no label")
+
+        image_filename = get_image_link(os.path.join(TMP_DIR, paper_id), image_filename, paper_id, i)
 
         image_caption_dataset.append({
             'image_filename': image_filename,
