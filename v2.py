@@ -55,11 +55,13 @@ if not os.path.exists(dataset_dir):
 if not os.path.exists(figures_dir):
     os.makedirs(figures_dir)
 
-def extract_figures_from_gz(gz_file, dir):
+def extract_figures_from_gz(arg):
+    gz_file, dir = arg
     paper_id = gz_file[:-3]
     # print(paper_id)
     try:
         if any(f.startswith(paper_id.replace('.','_')) for f in dir):
+            print(f'skipped {paper_id}')
             return
         print(os.path.join(RAW_DIR, gz_file))
         with tarfile.open(os.path.join(RAW_DIR, gz_file), mode='r:gz') as gz:
@@ -155,18 +157,18 @@ def get_image_link(tmp_dir, image_filename, paper_id, i):
 def process_all_gz_files(dir):
     gz_files = [i for i in os.listdir(RAW_DIR) if i.endswith('.gz')]
     for gz_file in tqdm(gz_files):
-        extract_figures_from_gz(gz_file, dir)
+        extract_figures_from_gz((gz_file, dir))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--processes', type=int, default=1)
+    parser.add_argument('-p', type=int, default=1)
     args = parser.parse_args()
-    if args.processes == 1:
-        dir = os.listdir(figures_dir)
-        dir = set(dir)
+    dir = os.listdir(figures_dir)
+    dir = set(dir)
+    if args.p == 1:
         process_all_gz_files(dir)
     else:
-        with Pool(args.processes) as p:
-            p.map(extract_figures_from_gz, [i for i in os.listdir(RAW_DIR) if i.endswith('.gz')])
+        with Pool(args.p) as p:
+            p.map(extract_figures_from_gz, [(i, dir) for i in os.listdir(RAW_DIR) if i.endswith('.gz')])
 
 
