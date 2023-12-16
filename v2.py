@@ -78,6 +78,7 @@ def extract_figures_from_gz(arg):
                     print(e)
 
             process_tex(content, paper_id)
+        shutil.rmtree(os.path.join(TMP_DIR, paper_id))
     except Exception as e:
         print(e)
 
