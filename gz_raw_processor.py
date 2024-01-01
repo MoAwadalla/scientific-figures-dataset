@@ -6,6 +6,7 @@ import tarfile
 from concurrent.futures import ProcessPoolExecutor
 from TexSoup import TexSoup
 import pandas as pd
+from PIL import Image
 
 
 # Define the directories for storing datasets and extracted figures
@@ -103,9 +104,12 @@ def get_image_link(tmp_dir, image_filename, paper_id):
             images = convert_from_path(image_path)
             pil_image = images[0]
             pil_image.save(new_image_path, format="PNG")
-        else:
+        elif image_path.lower().endswith('.png'):
             # If it's not a PDF, copy the image to the new path
             shutil.copy(image_path, new_image_path)
+        else:
+            img = Image.open(image_path)
+            img.save(new_image_path, format="PNG")
         #print(f"Saved image as {new_image_path}")
         return new_image_path
     except Exception as e:
