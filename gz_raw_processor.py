@@ -1,28 +1,30 @@
 import os
-import json
 import shutil
-from pdf2image import convert_from_path
 import tarfile
 from concurrent.futures import ProcessPoolExecutor
 from TexSoup import TexSoup
 import pandas as pd
-from PIL import Image
+import logging
+from time import time
 
+# Define logger
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Define the directories for storing datasets and extracted figures
 dataset_dir = 'dataset'
 figures_dir = os.path.join(dataset_dir, 'figures')
-RAW_DIR = 's3raw' # Path to directory containing .gz files
+RAW_DIR = 's3raw'  # Path to directory containing .gz files
 
 # Create directories if they do not exist
 if not os.path.exists(dataset_dir):
     os.makedirs(dataset_dir)
-    print(f"Created dataset directory: {dataset_dir}")
+    logging.debug(f"Created dataset directory: {dataset_dir}")
 if not os.path.exists(figures_dir):
     os.makedirs(figures_dir)
-    print(f"Created figures directory: {figures_dir}")
+    logging.debug(f"Created figures directory: {figures_dir}")
 
 def extract_figures_from_gz(gz_file):
+    start_time = time()
     # Extract the paper ID from the file name
     paper_id = os.path.splitext(gz_file)[0]
 
@@ -31,16 +33,16 @@ def extract_figures_from_gz(gz_file):
 
     # Check if the dataset JSON already exists for the current paper ID and skip processing if it does
     if os.path.exists(dataset_path):
-        print(f"Dataset for {paper_id} already exists. Skipping...")
+        logging.debug(f"Dataset for {paper_id} already exists. Skipping...")
         return
     else:
-        print(f"Processing {gz_file}...")
+        logging.debug(f"Processing {gz_file}...")
 
     try:
         with tarfile.open(os.path.join(RAW_DIR, gz_file), mode='r') as tar:
             tmp_dir = os.path.join("./tmp", paper_id)
             tar.extractall(path=tmp_dir)
-            print(f"Extracted {gz_file} to {tmp_dir}")
+            logging.debug(f"Extracted {gz_file} to {tmp_dir}")
 
             # Look for .tex files within the temporary directory
             tex_files = [os.path.join(root, name)
@@ -53,13 +55,17 @@ def extract_figures_from_gz(gz_file):
                         content = f.read()
                         process_tex(content, paper_id, tmp_dir)
                 except Exception as e:
-                    print(f"Error reading {tex_file_path}: {e}")
+                    logging.debug(f"Error reading {tex_file_path}: {e}")
 
             # Delete the temporary directory after processing
             shutil.rmtree(tmp_dir)
-            print(f"Removed temporary directory {tmp_dir}")
+            logging.debug(f"Removed temporary directory {tmp_dir}")
     except Exception as e:
-        print(f"Error extracting {gz_file}: {e}")
+        logging.debug(f"Error extracting {gz_file}: {e}")
+    end_time = time()
+    processing_time = end_time - start_time
+    logging.info(f"Processed {gz_file} in {processing_time:.2f} seconds.")
+
 
 def process_all_gz_files():
     # Get a list of .gz files in the raw directory
@@ -71,17 +77,19 @@ def save_dataset(dataset, paper_id):
     if not dataset or len(dataset) == 0:
         return
 
+    paper_id = paper_id.replace('.', '_')
+
     dataset_path = os.path.join(dataset_dir, f'{paper_id}.parquet')
     # Create a new file if it does not exist
     if not os.path.exists(dataset_path):
-        print(f"Creating dataset for {paper_id}")
+        logging.debug(f"Creating dataset for {paper_id}")
         df = pd.DataFrame(dataset)
         df.to_parquet(dataset_path)
     else:
         # Extend the existing dataset if the pd file already exists
         cur = pd.read_parquet(dataset_path)
         df = pd.concat([cur,pd.DataFrame(dataset)], ignore_index=True)
-        print(f"Updating dataset for {paper_id}")
+        logging.debug(f"Updating dataset for {paper_id}")
         df.to_parquet(dataset_path)
 
 def get_image_link(tmp_dir, image_filename, paper_id):
@@ -95,25 +103,14 @@ def get_image_link(tmp_dir, image_filename, paper_id):
 
     # Replace periods in paper ID with underscores for consistency in the filename
     paper_id = paper_id.replace('.', '_')
-    image_filename = image_filename.replace('figures/', '')[:-4]
-    new_image_path = os.path.join(dataset_dir, 'figures', f'{paper_id}_{image_filename}.png')
+    image_filename = image_filename.replace('figures/', '')
+    new_image_path = os.path.join(dataset_dir, 'figures', f'{paper_id}_{image_filename}')
 
     try:
-        # If the image is a PDF, convert it to PNG using the pdf2image library
-        if image_path.lower().endswith('.pdf'):
-            images = convert_from_path(image_path)
-            pil_image = images[0]
-            pil_image.save(new_image_path, format="PNG")
-        elif image_path.lower().endswith('.png'):
-            # If it's not a PDF, copy the image to the new path
-            shutil.copy(image_path, new_image_path)
-        else:
-            img = Image.open(image_path)
-            img.save(new_image_path, format="PNG")
-        #print(f"Saved image as {new_image_path}")
+        shutil.copy(image_path, new_image_path)
         return new_image_path
     except Exception as e:
-        print(f"Error processing image {image_filename}: {e}")
+        logging.debug(f"Error processing image {image_filename}: {e}")
         return None
 
 def process_tex(content, paper_id, tmp_dir):

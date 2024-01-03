@@ -15,19 +15,12 @@ def extract_gz_from_tar(tar_path, extraction_path):
     except Exception as e:
         print(f"Error processing {tar_path}: {e}")
 
-def clean_up_directory(tar_path, extraction_path):
-    # Remove the original tar file
-    os.remove(tar_path)
-    # Clean up any directories that were left behind
-    for root, dirs, files in os.walk(extraction_path, topdown=False):
-        for dir_name in dirs:
-            os.rmdir(os.path.join(root, dir_name))
+
 
 def process_tar_file(tar_path, extraction_path):
     # Extract .gz files from tar
     extract_gz_from_tar(tar_path, extraction_path)
-    # Clean up directories and tar file
-    clean_up_directory(tar_path, extraction_path)
+
 
 def main():
     directory = 's3raw'
