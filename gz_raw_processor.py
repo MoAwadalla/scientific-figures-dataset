@@ -89,7 +89,7 @@ def process_all_gz_files():
     bucket = client.get_bucket('raw_gz_arxivs')
 
     # Get a list of .gz files in the GCP bucket
-    blobs = list(bucket.list_blobs(max_results=20, prefix='19'))
+    blobs = list(bucket.list_blobs())
     gz_files = [blob.name for blob in blobs]
 
     with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
