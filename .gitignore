@@ -5,3 +5,6 @@ s3raw/
 *.parquet
 extracted/
 tmp/
+*.eps
+*.png
+*.ps

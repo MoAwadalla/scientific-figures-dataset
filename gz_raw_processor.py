@@ -6,11 +6,10 @@ from concurrent.futures import ProcessPoolExecutor
 from TexSoup import TexSoup
 import pandas as pd
 import logging
-from time import time
 from google.cloud import storage
 
 # Define logger
-logging.basicConfig(level=logging.CRITICAL, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Define the directories for storing datasets and extracted figures
 dataset_dir = 'dataset'
@@ -35,7 +34,6 @@ def download_gz_from_gcp(bucket_name, gz_file, destination):
     logging.debug(f"Downloaded {gz_file} from GCP bucket to {destination}")
 
 def extract_figures_from_gz(gz_file):
-    start_time = time()
     with tempfile.TemporaryDirectory() as down_dir:  # Temporary directory for downloading and extraction
         gz_local_path = os.path.join(down_dir, gz_file)
 
@@ -78,9 +76,7 @@ def extract_figures_from_gz(gz_file):
                 logging.debug(f"Removed temporary directory {tmp_dir}")
         except Exception as e:
             logging.debug(f"Error extracting {gz_file}: {e}")
-    end_time = time()
-    processing_time = end_time - start_time
-    logging.info(f"Processed {gz_file} in {processing_time:.2f} seconds.")
+            with open('failed.txt', 'a') as file: file.write(f'{gz_file}\n')
 
 
 def process_all_gz_files():
@@ -89,7 +85,8 @@ def process_all_gz_files():
     bucket = client.get_bucket('raw_gz_arxivs')
 
     # Get a list of .gz files in the GCP bucket
-    blobs = list(bucket.list_blobs())
+    blobs = list(bucket.list_blobs(max_results=10))
+    print(f'Got {len(blobs)} blobs')
     gz_files = [blob.name for blob in blobs]
 
     with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
