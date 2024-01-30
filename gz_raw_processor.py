@@ -2,14 +2,18 @@ import os
 import shutil
 import tarfile
 import tempfile
-from concurrent.futures import ProcessPoolExecutor
-from TexSoup import TexSoup
 import pandas as pd
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from TexSoup import TexSoup
 from google.cloud import storage
+import gzip
+
+# Initialize a GCP storage client once and reuse it
+client = storage.Client()
 
 # Define logger
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.CRITICAL, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Define the directories for storing datasets and extracted figures
 dataset_dir = 'dataset'
@@ -23,74 +27,69 @@ if not os.path.exists(figures_dir):
     os.makedirs(figures_dir)
     logging.debug(f"Created figures directory: {figures_dir}")
 
-def download_gz_from_gcp(bucket_name, gz_file, destination):
-    # Initialize a GCP storage client
-    client = storage.Client()
+# New Function to handle tar.gz extraction
+def extract_tar_gz(gz_local_path, extract_path):
+    if gz_local_path.endswith('.tar.gz'):
+        tar_gz_path = gz_local_path.rstrip('.gz')  # Remove '.gz' for the '.tar' file
+        with gzip.open(gz_local_path, 'rb') as f_in:
+            with open(tar_gz_path, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+
+        # Now we can deal with the .tar part
+        with tarfile.open(tar_gz_path, mode='r') as tar:
+            tar.extractall(path=extract_path)
+        os.remove(tar_gz_path)  # Remove the intermediate '.tar' file
+    else:
+        logging.debug(f"Unsupported file extension for {gz_local_path}")
+
+def download_gz_from_gcp(bucket_name, gz_files, destination_dir):
+    # Access the target GCP bucket
     bucket = client.get_bucket(bucket_name)
 
-    # Download the .gz file from GCP to the local destination
-    blob = bucket.blob(gz_file)
-    blob.download_to_filename(destination)
-    logging.debug(f"Downloaded {gz_file} from GCP bucket to {destination}")
+    for gz_file in gz_files:
+        # Construct the local destination path
+        destination_path = os.path.join(destination_dir, gz_file)
 
-def extract_figures_from_gz(gz_file):
-    with tempfile.TemporaryDirectory() as down_dir:  # Temporary directory for downloading and extraction
+        # Download the .gz file from GCP to the local destination
+        blob = bucket.blob(gz_file)
+        blob.download_to_filename(destination_path)
+        logging.debug(f"Downloaded {gz_file} to {destination_path}")
+
+def process_and_process_gz_files(gz_files, down_dir):
+    for gz_file in gz_files:
         gz_local_path = os.path.join(down_dir, gz_file)
+        extract_figures_from_gz(gz_local_path)
 
-        # Download the .gz file before processing
-        download_gz_from_gcp('raw_gz_arxivs', gz_file, gz_local_path)
+def extract_figures_from_gz(gz_local_path):
+    # Extract the paper ID from the file name
+    paper_id = os.path.splitext(os.path.basename(gz_local_path))[0]
 
-        # Extract the paper ID from the file name
-        paper_id = os.path.splitext(gz_file)[0]
+    # JSON file path for the extracted figures and potential dataset for the current paper
+    dataset_path = os.path.join(dataset_dir, f'{paper_id}.parquet')
 
-        # JSON file path for the extracted figures and potential dataset for the current paper
-        dataset_path = os.path.join(dataset_dir, f'{paper_id}.parquet')
+    try:
+        tmp_dir = os.path.join("./tmp", paper_id)
+        os.makedirs(tmp_dir, exist_ok=False)
+        extract_tar_gz(gz_local_path, tmp_dir)
 
-        # Check if the dataset JSON already exists for the current paper ID and skip processing if it does
-        if os.path.exists(dataset_path):
-            logging.debug(f"Dataset for {paper_id} already exists. Skipping...")
-            return
-        else:
-            logging.debug(f"Processing {gz_file}...")
+        # Look for .tex files within the temporary directory
+        tex_files = [os.path.join(root, name)
+                        for root, dirs, files in os.walk(tmp_dir)
+                        for name in files if name.endswith(".tex")]
+        for tex_file_path in tex_files:
+            try:
+                with open(tex_file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                    process_tex(content, paper_id, tmp_dir)
+            except Exception as e:
+                logging.debug(f"Error reading {tex_file_path}: {e}")
 
-        try:
-            with tarfile.open(gz_local_path, mode='r') as tar:
-                tmp_dir = os.path.join("./tmp", paper_id)
-                tar.extractall(path=tmp_dir)
-                logging.debug(f"Extracted {gz_file} to {tmp_dir}")
-
-                # Look for .tex files within the temporary directory
-                tex_files = [os.path.join(root, name)
-                                for root, dirs, files in os.walk(tmp_dir)
-                                for name in files if name.endswith(".tex")]
-                for tex_file_path in tex_files:
-                    try:
-                        with open(tex_file_path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            process_tex(content, paper_id, tmp_dir)
-                    except Exception as e:
-                        logging.debug(f"Error reading {tex_file_path}: {e}")
-
-                # Delete the temporary directory after processing
-                shutil.rmtree(tmp_dir)
-                logging.debug(f"Removed temporary directory {tmp_dir}")
-        except Exception as e:
-            logging.debug(f"Error extracting {gz_file}: {e}")
-            with open('failed.txt', 'a') as file: file.write(f'{gz_file}\n')
-
-
-def process_all_gz_files():
-    # Initialize a GCP storage client
-    client = storage.Client()
-    bucket = client.get_bucket('raw_gz_arxivs')
-
-    # Get a list of .gz files in the GCP bucket
-    blobs = list(bucket.list_blobs(max_results=10))
-    print(f'Got {len(blobs)} blobs')
-    gz_files = [blob.name for blob in blobs]
-
-    with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
-        executor.map(extract_figures_from_gz, gz_files)
+        # Delete the temporary directory after processing
+        shutil.rmtree(tmp_dir)
+        logging.debug(f"Removed temporary directory {tmp_dir}")
+    except Exception as e:
+        logging.debug(f"Error extracting {gz_local_path}: {e}")
+        
 
 def save_dataset(dataset, paper_id):
     if not dataset or len(dataset) == 0:
@@ -173,6 +172,23 @@ def process_tex(content, paper_id, tmp_dir):
 
     # Save the processed dataset
     save_dataset(dataset, paper_id)
+def process_gz_file_batch(gz_files):
+    with tempfile.TemporaryDirectory() as down_dir:
+        download_gz_from_gcp('raw_gz_arxivs', gz_files, down_dir)
+        process_and_process_gz_files(gz_files, down_dir)
+
+def process_all_gz_files(batch_size=1000):
+    # Get a list of .gz files in the GCP bucket
+    bucket = client.get_bucket('raw_gz_arxivs')
+    blobs = list(bucket.list_blobs())
+    gz_files = [blob.name for blob in blobs]
+
+    # Split the list of gz_files into batches
+    batches = [gz_files[i:i + batch_size] for i in range(0, len(gz_files), batch_size)]
+
+    # Use ThreadPoolExecutor for parallel batch downloads and processing
+    with ThreadPoolExecutor(max_workers=4) as executor:  # Limit the number of threads
+        executor.map(process_gz_file_batch, batches)
 
 if __name__ == '__main__':
     process_all_gz_files()
