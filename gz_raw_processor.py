@@ -29,18 +29,8 @@ if not os.path.exists(figures_dir):
 
 # New Function to handle tar.gz extraction
 def extract_tar_gz(gz_local_path, extract_path):
-    if gz_local_path.endswith('.tar.gz'):
-        tar_gz_path = gz_local_path.rstrip('.gz')  # Remove '.gz' for the '.tar' file
-        with gzip.open(gz_local_path, 'rb') as f_in:
-            with open(tar_gz_path, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
-
-        # Now we can deal with the .tar part
-        with tarfile.open(tar_gz_path, mode='r') as tar:
-            tar.extractall(path=extract_path)
-        os.remove(tar_gz_path)  # Remove the intermediate '.tar' file
-    else:
-        logging.debug(f"Unsupported file extension for {gz_local_path}")
+    with tarfile.open(gz_local_path, mode='r') as tar:
+        tar.extractall(path=extract_path)
 
 def download_gz_from_gcp(bucket_name, gz_files, destination_dir):
     # Access the target GCP bucket
@@ -177,10 +167,11 @@ def process_gz_file_batch(gz_files):
         download_gz_from_gcp('raw_gz_arxivs', gz_files, down_dir)
         process_and_process_gz_files(gz_files, down_dir)
 
-def process_all_gz_files(batch_size=10):
+def process_all_gz_files(batch_size=500):
     # Get a list of .gz files in the GCP bucket
     bucket = client.get_bucket('raw_gz_arxivs')
-    blobs = list(bucket.list_blobs(max_results=100))
+    blobs = list(bucket.list_blobs())
+    print(f'{len(blobs)} blobs')
     gz_files = [blob.name for blob in blobs]
 
     # Split the list of gz_files into batches
