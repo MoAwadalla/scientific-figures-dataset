@@ -177,10 +177,10 @@ def process_gz_file_batch(gz_files):
         download_gz_from_gcp('raw_gz_arxivs', gz_files, down_dir)
         process_and_process_gz_files(gz_files, down_dir)
 
-def process_all_gz_files(batch_size=1000):
+def process_all_gz_files(batch_size=10):
     # Get a list of .gz files in the GCP bucket
     bucket = client.get_bucket('raw_gz_arxivs')
-    blobs = list(bucket.list_blobs())
+    blobs = list(bucket.list_blobs(max_results=100))
     gz_files = [blob.name for blob in blobs]
 
     # Split the list of gz_files into batches
