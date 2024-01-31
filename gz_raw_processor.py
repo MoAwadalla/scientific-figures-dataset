@@ -4,7 +4,7 @@ import tarfile
 import tempfile
 import pandas as pd
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 from TexSoup import TexSoup
 from google.cloud import storage
 import gzip
@@ -187,7 +187,7 @@ def process_all_gz_files(batch_size=10):
     batches = [gz_files[i:i + batch_size] for i in range(0, len(gz_files), batch_size)]
 
     # Use ThreadPoolExecutor for parallel batch downloads and processing
-    with ThreadPoolExecutor(max_workers=4) as executor:  # Limit the number of threads
+    with ProcessPoolExecutor() as executor:  # Limit the number of threads
         executor.map(process_gz_file_batch, batches)
 
 if __name__ == '__main__':
